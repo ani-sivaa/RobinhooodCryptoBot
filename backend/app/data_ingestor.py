@@ -39,13 +39,21 @@ class DataIngestor:
             self._session_closed = True
     
     async def get_market_data(self, symbols: List[str]) -> List[MarketData]:
-        """Fetch real-time market data from Robinhood API"""
+        """Fetch real-time market data from Robinhood API with CoinGecko fallback"""
+        # Try Robinhood first, fallback to CoinGecko
         try:
-            if not self.session or self.session.closed:
-                self.session = aiohttp.ClientSession()
-                self._session_closed = False
-            
-            market_data_list = []
+            return await self._get_robinhood_data(symbols)
+        except Exception as e:
+            logger.warning(f"Robinhood API failed, falling back to CoinGecko: {e}")
+            return await self._get_coingecko_data(symbols)
+    
+    async def _get_robinhood_data(self, symbols: List[str]) -> List[MarketData]:
+        """Fetch data from Robinhood API"""
+        if not self.session or self.session.closed:
+            self.session = aiohttp.ClientSession()
+            self._session_closed = False
+        
+        market_data_list = []
             
             # Robinhood crypto symbol mapping
             symbol_mapping = {
@@ -118,6 +126,49 @@ class DataIngestor:
                     "medium"
                 )
             logger.error(f"Error fetching market data: {e}")
+            return []
+    
+    async def _get_coingecko_data(self, symbols: List[str]) -> List[MarketData]:
+        """Fallback method using CoinGecko API"""
+        try:
+            if not self.session or self.session.closed:
+                self.session = aiohttp.ClientSession()
+                self._session_closed = False
+            
+            symbol_ids = ",".join([s.lower() for s in symbols])
+            url = f"https://api.coingecko.com/api/v3/simple/price"
+            params = {
+                "ids": symbol_ids,
+                "vs_currencies": "usd",
+                "include_24hr_vol": "true",
+                "include_24hr_change": "true",
+                "include_last_updated_at": "true"
+            }
+            
+            async with self.session.get(url, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    market_data = []
+                    
+                    for symbol in symbols:
+                        symbol_lower = symbol.lower()
+                        if symbol_lower in data:
+                            coin_data = data[symbol_lower]
+                            market_data.append(MarketData(
+                                symbol=symbol.upper(),
+                                price=coin_data.get("usd", 0),
+                                volume=coin_data.get("usd_24h_vol", 0),
+                                change_24h=coin_data.get("usd_24h_change", 0),
+                                timestamp=datetime.now()
+                            ))
+                    
+                    return market_data
+                else:
+                    logger.error(f"CoinGecko API failed: {response.status}")
+                    return []
+        
+        except Exception as e:
+            logger.error(f"CoinGecko fallback failed: {e}")
             return []
     
     async def get_crypto_news(self, symbols: List[str] = None, limit: int = 10) -> List[NewsItem]:
