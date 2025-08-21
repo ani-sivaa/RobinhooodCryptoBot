@@ -91,9 +91,9 @@ function App() {
   const [loginPassword, setLoginPassword] = useState('');
   
   const [manualTrade, setManualTrade] = useState({
-    symbol: 'bitcoin',
+    symbol: 'dogecoin',
     side: 'buy',
-    quantity: 0.001,
+    quantity: 100,
     order_type: 'market'
   });
   
@@ -808,10 +808,13 @@ function App() {
                       value={manualTrade.symbol}
                       onChange={(e) => setManualTrade({...manualTrade, symbol: e.target.value})}
                     >
-                      <option value="bitcoin">Bitcoin</option>
-                      <option value="ethereum">Ethereum</option>
-                      <option value="cardano">Cardano</option>
-                      <option value="solana">Solana</option>
+                      <option value="dogecoin">Dogecoin (~$0.08 - Cheapest)</option>
+                      <option value="cardano">Cardano (~$0.35)</option>
+                      <option value="stellar">Stellar (~$0.09)</option>
+                      <option value="polygon">Polygon (~$0.40)</option>
+                      <option value="solana">Solana (~$20)</option>
+                      <option value="ethereum">Ethereum (~$2,400)</option>
+                      <option value="bitcoin">Bitcoin (~$35,000)</option>
                     </select>
                   </div>
 
@@ -833,10 +836,14 @@ function App() {
                     <Input
                       id="trade_quantity"
                       type="number"
-                      step="0.000001"
+                      step="1"
                       value={manualTrade.quantity}
                       onChange={(e) => setManualTrade({...manualTrade, quantity: parseFloat(e.target.value)})}
+                      placeholder="e.g. 100 DOGE = ~$8"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Recommended: 100+ for cheap coins, 0.001+ for expensive coins
+                    </p>
                   </div>
 
                   <div>

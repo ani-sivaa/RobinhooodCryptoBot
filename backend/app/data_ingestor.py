@@ -39,56 +39,81 @@ class DataIngestor:
             self._session_closed = True
     
     async def get_market_data(self, symbols: List[str]) -> List[MarketData]:
-        """Fetch real-time market data from CoinGecko API"""
+        """Fetch real-time market data from Robinhood API"""
         try:
             if not self.session or self.session.closed:
                 self.session = aiohttp.ClientSession()
                 self._session_closed = False
             
-            symbol_ids = ",".join([s.lower() for s in symbols])
-            url = f"https://api.coingecko.com/api/v3/simple/price"
-            params = {
-                "ids": symbol_ids,
-                "vs_currencies": "usd",
-                "include_24hr_vol": "true",
-                "include_24hr_change": "true",
-                "include_last_updated_at": "true"
+            market_data_list = []
+            
+            # Robinhood crypto symbol mapping
+            symbol_mapping = {
+                'bitcoin': 'BTC',
+                'ethereum': 'ETH', 
+                'cardano': 'ADA',
+                'solana': 'SOL',
+                'dogecoin': 'DOGE',
+                'stellar': 'XLM',
+                'polygon': 'MATIC'
             }
             
-            async with self.session.get(url, params=params) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    market_data = []
-                    
-                    for symbol in symbols:
-                        symbol_lower = symbol.lower()
-                        if symbol_lower in data:
-                            coin_data = data[symbol_lower]
-                            market_data.append(MarketData(
+            headers = {
+                'Authorization': f'Bearer {settings.robinhood_api_key}',
+                'Content-Type': 'application/json'
+            }
+            
+            for symbol in symbols:
+                rh_symbol = symbol_mapping.get(symbol.lower(), symbol.upper())
+                url = f"https://api.robinhood.com/marketdata/forex/historicals/{rh_symbol}USD/"
+                params = {
+                    'interval': '5minute',
+                    'span': 'day',
+                    'bounds': 'extended'
+                }
+                
+                async with self.session.get(url, headers=headers, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        historicals = data.get('results', [])
+                        
+                        if historicals:
+                            # Get the most recent price data
+                            latest = historicals[-1]
+                            price = float(latest.get('close_price', 0))
+                            volume = float(latest.get('volume', 0))
+                            
+                            # Calculate 24h change if we have enough data
+                            change_24h = 0
+                            if len(historicals) > 1:
+                                prev_price = float(historicals[0].get('open_price', price))
+                                if prev_price > 0:
+                                    change_24h = ((price - prev_price) / prev_price) * 100
+                            
+                            market_data_list.append(MarketData(
                                 symbol=symbol.upper(),
-                                price=coin_data.get("usd", 0),
-                                volume=coin_data.get("usd_24h_vol", 0),
-                                change_24h=coin_data.get("usd_24h_change", 0),
+                                price=price,
+                                volume=volume,
+                                change_24h=change_24h,
                                 timestamp=datetime.now()
                             ))
-                    
-                    return market_data
-                else:
-                    logger.error(f"Failed to fetch market data: {response.status}")
-                    return []
+                    else:
+                        logger.error(f"Failed to fetch {symbol} data: {response.status}")
+            
+            return market_data_list
         
         except Exception as e:
             if "429" in str(e) or "rate limit" in str(e).lower():
                 error_logger.log_error(
                     ErrorType.API_LIMIT,
-                    f"CoinGecko API rate limit reached",
+                    f"Robinhood API rate limit reached",
                     {"error": str(e)},
                     "high"
                 )
             else:
                 error_logger.log_error(
                     ErrorType.DATA_ERROR,
-                    f"Error fetching market data: {e}",
+                    f"Error fetching market data from Robinhood: {e}",
                     {"error": str(e)},
                     "medium"
                 )

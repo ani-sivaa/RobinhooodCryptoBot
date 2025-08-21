@@ -24,7 +24,7 @@ class TradingBot:
         self.execution_module = ExecutionModule()
         
         self.is_running = False
-        self.symbols = ["bitcoin", "ethereum", "cardano", "solana"]  # Default crypto symbols
+        self.symbols = ["dogecoin", "cardano", "stellar", "polygon"]  # Cheaper crypto symbols for testing
         self.strategy_config = StrategyConfig(
             name="combined",
             enabled=True,
