@@ -10,7 +10,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/ (commented out to allow frontend/src/lib/utils.ts)
 lib64/
 parts/
 sdist/
