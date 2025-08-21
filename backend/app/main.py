@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from .trading_bot import TradingBot
 from .models import StrategyConfig
 from .config import settings
+from .error_logger import error_logger, ErrorType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,13 +33,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Disable CORS. Do not remove this for full-stack development.
+import os
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class StartBotRequest(BaseModel):
@@ -60,6 +62,10 @@ class ManualTradeRequest(BaseModel):
 async def healthz():
     return {"status": "ok"}
 
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+
 @app.get("/api/status")
 async def get_bot_status():
     """Get current trading bot status and metrics"""
@@ -70,6 +76,12 @@ async def get_bot_status():
         status = await trading_bot.get_status()
         return status
     except Exception as e:
+        error_logger.log_error(
+            ErrorType.SYSTEM_ERROR,
+            f"Error getting bot status: {e}",
+            {"endpoint": "/api/status"},
+            "high"
+        )
         logger.error(f"Error getting bot status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -95,6 +107,12 @@ async def start_bot(request: StartBotRequest, background_tasks: BackgroundTasks)
             "paper_trading_mode": settings.paper_trading_mode
         }
     except Exception as e:
+        error_logger.log_error(
+            ErrorType.SYSTEM_ERROR,
+            f"Error starting bot: {e}",
+            {"endpoint": "/api/start", "symbols": request.symbols},
+            "high"
+        )
         logger.error(f"Error starting bot: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -281,5 +299,41 @@ async def get_risk_metrics():
         risk_metrics = trading_bot.risk_manager.get_risk_metrics(portfolio)
         return risk_metrics
     except Exception as e:
+        error_logger.log_error(
+            ErrorType.SYSTEM_ERROR,
+            f"Error getting risk metrics: {e}",
+            {"endpoint": "/api/risk-metrics"},
+            "medium"
+        )
         logger.error(f"Error getting risk metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/errors")
+async def get_recent_errors(limit: int = 20):
+    """Get recent errors for dashboard display"""
+    try:
+        errors = error_logger.get_recent_errors(limit)
+        return [error.dict() for error in errors]
+    except Exception as e:
+        logger.error(f"Error getting error logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/errors/resolve/{error_id}")
+async def resolve_error(error_id: str):
+    """Mark an error as resolved"""
+    try:
+        success = error_logger.resolve_error(error_id)
+        return {"success": success}
+    except Exception as e:
+        logger.error(f"Error resolving error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/errors/stats")
+async def get_error_stats():
+    """Get error statistics for monitoring"""
+    try:
+        stats = error_logger.get_error_stats()
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting error stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
