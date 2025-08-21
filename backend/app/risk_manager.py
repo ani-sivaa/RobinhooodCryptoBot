@@ -19,11 +19,11 @@ class RiskManager:
         
         self.max_loss_per_trade = settings.max_loss_per_trade  # 2%
         self.daily_loss_limit = settings.daily_loss_limit      # 10%
-        self.trading_budget = settings.trading_budget          # $1000
+        self.trading_budget = settings.trading_budget          # $100
         
         self.max_trades_per_day = 20
         self.max_position_size = 0.15  # 15% of portfolio max
-        self.min_trade_amount = 10.0   # Minimum $10 trade
+        self.min_trade_amount = 5.0    # Minimum $5 trade
         
     def validate_trade(
         self, 
