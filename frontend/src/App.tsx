@@ -85,6 +85,11 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [systemErrors, setSystemErrors] = useState<any[]>([]);
   
+  // Authentication state
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [sessionToken, setSessionToken] = useState<string | null>(localStorage.getItem('sessionToken'));
+  const [loginPassword, setLoginPassword] = useState('');
+  
   const [manualTrade, setManualTrade] = useState({
     symbol: 'bitcoin',
     side: 'buy',
@@ -107,6 +112,47 @@ function App() {
     enabled: true,
     name: 'combined'
   });
+
+  const login = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: loginPassword })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSessionToken(data.token);
+        setIsLoggedIn(true);
+        localStorage.setItem('sessionToken', data.token);
+        setLoginPassword('');
+        setError(null);
+        await loadInitialData();
+      } else {
+        setError('Invalid password');
+      }
+    } catch (err) {
+      setError('Login failed: ' + (err as Error).message);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      if (sessionToken) {
+        await fetch(`${API_BASE_URL}/api/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': sessionToken }
+        });
+      }
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      setSessionToken(null);
+      setIsLoggedIn(false);
+      localStorage.removeItem('sessionToken');
+    }
+  };
 
   const fetchBotStatus = async () => {
     try {
@@ -175,7 +221,10 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': sessionToken || ''
+        },
         body: JSON.stringify({ symbols: ['bitcoin', 'ethereum', 'cardano', 'solana'] })
       });
       
@@ -192,7 +241,10 @@ function App() {
 
   const stopBot = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/stop`, { method: 'POST' });
+      const response = await fetch(`${API_BASE_URL}/api/stop`, { 
+        method: 'POST',
+        headers: { 'Authorization': sessionToken || '' }
+      });
       if (response.ok) {
         await fetchBotStatus();
       }
@@ -203,7 +255,10 @@ function App() {
 
   const emergencyStop = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/emergency-stop`, { method: 'POST' });
+      const response = await fetch(`${API_BASE_URL}/api/emergency-stop`, { 
+        method: 'POST',
+        headers: { 'Authorization': sessionToken || '' }
+      });
       if (response.ok) {
         await fetchBotStatus();
       }
@@ -216,7 +271,10 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/trade/manual`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': sessionToken || ''
+        },
         body: JSON.stringify(manualTrade)
       });
       
@@ -252,33 +310,44 @@ function App() {
     }
   };
 
+  const loadInitialData = async () => {
+    setLoading(true);
+    await Promise.all([
+      fetchBotStatus(),
+      fetchTrades(),
+      fetchNews(),
+      fetchSystemErrors()
+    ]);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const loadInitialData = async () => {
-      setLoading(true);
-      await Promise.all([
-        fetchBotStatus(),
-        fetchTrades(),
-        fetchNews(),
-        fetchSystemErrors()
-      ]);
+    // Check if user is already logged in
+    if (sessionToken) {
+      setIsLoggedIn(true);
+      loadInitialData();
+    } else {
       setLoading(false);
-    };
+    }
 
-    loadInitialData();
+    let interval: NodeJS.Timeout;
+    let newsInterval: NodeJS.Timeout;
+    
+    if (isLoggedIn) {
+      interval = setInterval(() => {
+        fetchBotStatus();
+        fetchTrades();
+        fetchSystemErrors();
+      }, 10000);
 
-    const interval = setInterval(() => {
-      fetchBotStatus();
-      fetchTrades();
-      fetchSystemErrors();
-    }, 10000);
-
-    const newsInterval = setInterval(fetchNews, 300000);
+      newsInterval = setInterval(fetchNews, 300000);
+    }
 
     return () => {
-      clearInterval(interval);
-      clearInterval(newsInterval);
+      if (interval) clearInterval(interval);
+      if (newsInterval) clearInterval(newsInterval);
     };
-  }, []);
+  }, [isLoggedIn, sessionToken]);
 
   if (loading) {
     return (
@@ -287,6 +356,41 @@ function App() {
           <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p>Loading trading dashboard...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Trading Bot Login</CardTitle>
+            <CardDescription>Enter your password to access the dashboard</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && login()}
+                placeholder="Enter your password"
+              />
+            </div>
+            <Button onClick={login} className="w-full">
+              Login
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -331,6 +435,14 @@ function App() {
             >
               <AlertTriangle className="h-4 w-4 mr-2" />
               Emergency Stop
+            </Button>
+            
+            <Button
+              onClick={logout}
+              variant="outline"
+              size="sm"
+            >
+              Logout
             </Button>
           </div>
         </div>
