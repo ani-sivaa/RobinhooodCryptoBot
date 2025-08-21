@@ -6,6 +6,7 @@ import pandas as pd
 from .models import MarketData, NewsItem, TechnicalIndicators
 from .config import settings
 import logging
+from .error_logger import error_logger, ErrorType
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,20 @@ class DataIngestor:
                     return []
         
         except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                error_logger.log_error(
+                    ErrorType.API_LIMIT,
+                    f"CoinGecko API rate limit reached",
+                    {"error": str(e)},
+                    "high"
+                )
+            else:
+                error_logger.log_error(
+                    ErrorType.DATA_ERROR,
+                    f"Error fetching market data: {e}",
+                    {"error": str(e)},
+                    "medium"
+                )
             logger.error(f"Error fetching market data: {e}")
             return []
     
@@ -108,6 +123,20 @@ class DataIngestor:
                     return []
         
         except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                error_logger.log_error(
+                    ErrorType.API_LIMIT,
+                    f"NewsData API rate limit reached",
+                    {"error": str(e)},
+                    "high"
+                )
+            else:
+                error_logger.log_error(
+                    ErrorType.DATA_ERROR,
+                    f"Error fetching crypto news: {e}",
+                    {"error": str(e)},
+                    "medium"
+                )
             logger.error(f"Error fetching news: {e}")
             return []
     

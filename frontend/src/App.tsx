@@ -83,6 +83,7 @@ function App() {
   const [riskMetrics, setRiskMetrics] = useState<RiskMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [systemErrors, setSystemErrors] = useState<any[]>([]);
   
   const [manualTrade, setManualTrade] = useState({
     symbol: 'bitcoin',
@@ -142,6 +143,31 @@ function App() {
       }
     } catch (err) {
       console.error('Error fetching news:', err);
+    }
+  };
+
+  const fetchSystemErrors = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/errors`);
+      if (response.ok) {
+        const data = await response.json();
+        setSystemErrors(data);
+      }
+    } catch (err) {
+      console.error('Error fetching system errors:', err);
+    }
+  };
+
+  const resolveError = async (errorId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/errors/resolve/${errorId}`, {
+        method: 'POST'
+      });
+      if (response.ok) {
+        await fetchSystemErrors();
+      }
+    } catch (err) {
+      console.error('Error resolving error:', err);
     }
   };
 
@@ -232,7 +258,8 @@ function App() {
       await Promise.all([
         fetchBotStatus(),
         fetchTrades(),
-        fetchNews()
+        fetchNews(),
+        fetchSystemErrors()
       ]);
       setLoading(false);
     };
@@ -242,6 +269,7 @@ function App() {
     const interval = setInterval(() => {
       fetchBotStatus();
       fetchTrades();
+      fetchSystemErrors();
     }, 10000);
 
     const newsInterval = setInterval(fetchNews, 300000);
@@ -395,12 +423,13 @@ function App() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList>
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="trades">Trades</TabsTrigger>
             <TabsTrigger value="strategy">Strategy</TabsTrigger>
             <TabsTrigger value="news">News</TabsTrigger>
             <TabsTrigger value="manual">Manual Trade</TabsTrigger>
+            <TabsTrigger value="logs">System Logs</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -715,6 +744,73 @@ function App() {
                 <Button onClick={executeManualTrade} className="w-full">
                   Execute Trade
                 </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* System Logs Tab */}
+          <TabsContent value="logs" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  <span>System Error Logs</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {systemErrors.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">No system errors recorded</p>
+                  ) : (
+                    systemErrors.map((error: any) => (
+                      <div key={error.id} className={`p-4 rounded-lg border ${
+                        error.severity === 'critical' ? 'border-red-500 bg-red-50' :
+                        error.severity === 'high' ? 'border-orange-500 bg-orange-50' :
+                        error.severity === 'medium' ? 'border-yellow-500 bg-yellow-50' :
+                        'border-blue-500 bg-blue-50'
+                      }`}>
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Badge variant={
+                                error.severity === 'critical' ? 'destructive' :
+                                error.severity === 'high' ? 'destructive' :
+                                error.severity === 'medium' ? 'secondary' :
+                                'default'
+                              }>
+                                {error.error_type}
+                              </Badge>
+                              <Badge variant={error.resolved ? 'default' : 'outline'}>
+                                {error.resolved ? 'Resolved' : 'Active'}
+                              </Badge>
+                              <span className="text-sm text-gray-500">
+                                {new Date(error.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                            <p className="font-medium mb-1">{error.message}</p>
+                            {error.details && Object.keys(error.details).length > 0 && (
+                              <details className="text-sm text-gray-600">
+                                <summary className="cursor-pointer">Details</summary>
+                                <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
+                                  {JSON.stringify(error.details, null, 2)}
+                                </pre>
+                              </details>
+                            )}
+                          </div>
+                          {!error.resolved && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => resolveError(error.id)}
+                            >
+                              Mark Resolved
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
