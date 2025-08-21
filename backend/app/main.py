@@ -35,7 +35,7 @@ app = FastAPI(
 )
 
 # Simple password authentication
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "gambling-100-anirudh")
+ADMIN_PASSWORD = "gambling-100-anirudh"  # Fixed password
 
 class LoginRequest(BaseModel):
     password: str
