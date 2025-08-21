@@ -20,20 +20,30 @@ class DataIngestor:
         self.session: Optional[aiohttp.ClientSession] = None
         self.cache = {}
         self.cache_ttl = 60  # Cache for 60 seconds
+        self._session_closed = False
     
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
+        if not self.session or self.session.closed:
+            self.session = aiohttp.ClientSession()
+            self._session_closed = False
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
+        # Don't close session in context manager - keep it alive
+        pass
+    
+    async def close(self):
+        """Explicitly close the session when shutting down"""
+        if self.session and not self.session.closed:
             await self.session.close()
+            self._session_closed = True
     
     async def get_market_data(self, symbols: List[str]) -> List[MarketData]:
         """Fetch real-time market data from CoinGecko API"""
         try:
-            if not self.session:
+            if not self.session or self.session.closed:
                 self.session = aiohttp.ClientSession()
+                self._session_closed = False
             
             symbol_ids = ",".join([s.lower() for s in symbols])
             url = f"https://api.coingecko.com/api/v3/simple/price"
@@ -88,8 +98,9 @@ class DataIngestor:
     async def get_crypto_news(self, symbols: List[str] = None, limit: int = 10) -> List[NewsItem]:
         """Fetch crypto news with sentiment analysis"""
         try:
-            if not self.session:
+            if not self.session or self.session.closed:
                 self.session = aiohttp.ClientSession()
+                self._session_closed = False
             
             url = "https://newsdata.io/api/1/news"
             params = {

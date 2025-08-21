@@ -68,6 +68,8 @@ class TradingBot:
         """Stop the trading bot"""
         logger.info("Stopping trading bot...")
         self.is_running = False
+        # Close data ingestor session
+        await self.data_ingestor.close()
     
     async def emergency_stop(self, reason: str = "Manual emergency stop"):
         """Emergency stop with risk manager intervention"""
