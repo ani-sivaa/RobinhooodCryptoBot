@@ -111,23 +111,23 @@ class DataIngestor:
             
             return market_data_list
         
-    except Exception as e:
-        if "429" in str(e) or "rate limit" in str(e).lower():
-            error_logger.log_error(
-                ErrorType.API_LIMIT,
-                f"Robinhood API rate limit reached",
-                {"error": str(e)},
-                "high"
-            )
-        else:
-            error_logger.log_error(
-                ErrorType.DATA_ERROR,
-                f"Error fetching market data from Robinhood: {e}",
-                {"error": str(e)},
-                "medium"
-            )
-        logger.error(f"Error fetching market data: {e}")
-        return []
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                error_logger.log_error(
+                    ErrorType.API_LIMIT,
+                    f"Robinhood API rate limit reached",
+                    {"error": str(e)},
+                    "high"
+                )
+            else:
+                error_logger.log_error(
+                    ErrorType.DATA_ERROR,
+                    f"Error fetching market data from Robinhood: {e}",
+                    {"error": str(e)},
+                    "medium"
+                )
+            logger.error(f"Error fetching market data: {e}")
+            return []
     
     async def _get_coingecko_data(self, symbols: List[str]) -> List[MarketData]:
         """Fallback method using CoinGecko API"""
