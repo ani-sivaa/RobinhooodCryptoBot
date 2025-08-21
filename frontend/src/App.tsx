@@ -275,7 +275,7 @@ function App() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Crypto Trading Bot Dashboard</h1>
-            <p className="text-gray-600">Robinhood API Integration • $1,000 Budget</p>
+            <p className="text-gray-600">Robinhood API Integration • $100 Budget</p>
           </div>
           
           <div className="flex space-x-2">
