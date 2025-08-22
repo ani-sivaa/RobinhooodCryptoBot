@@ -34,19 +34,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Simple password authentication
-ADMIN_PASSWORD = "gambling-100-anirudh"  # Fixed password
-
-class LoginRequest(BaseModel):
-    password: str
-
-# Simple session storage (in production, use Redis or JWT)
-active_sessions = set()
-
-def verify_session(authorization: Annotated[str | None, Header()] = None):
-    if not authorization or authorization not in active_sessions:
-        raise HTTPException(status_code=401, detail="Please login first")
-    return authorization
 
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
@@ -80,25 +67,6 @@ async def healthz():
 async def health():
     return {"status": "healthy"}
 
-@app.post("/api/login")
-async def login(request: LoginRequest):
-    """Simple password login"""
-    if request.password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid password")
-    
-    # Generate simple session token
-    import secrets
-    session_token = secrets.token_urlsafe(32)
-    active_sessions.add(session_token)
-    
-    return {"token": session_token, "message": "Login successful"}
-
-@app.post("/api/logout")
-async def logout(authorization: Annotated[str | None, Header()] = None):
-    """Logout and invalidate session"""
-    if authorization and authorization in active_sessions:
-        active_sessions.remove(authorization)
-    return {"message": "Logged out successfully"}
 
 @app.get("/api/status")
 async def get_bot_status():
@@ -120,7 +88,7 @@ async def get_bot_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/start")
-async def start_bot(request: StartBotRequest, background_tasks: BackgroundTasks, session: str = Depends(verify_session)):
+async def start_bot(request: StartBotRequest, background_tasks: BackgroundTasks):
     """Start the trading bot"""
     if not trading_bot:
         raise HTTPException(status_code=500, detail="Trading bot not initialized")
@@ -151,7 +119,7 @@ async def start_bot(request: StartBotRequest, background_tasks: BackgroundTasks,
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/stop")
-async def stop_bot(session: str = Depends(verify_session)):
+async def stop_bot():
     """Stop the trading bot"""
     if not trading_bot:
         raise HTTPException(status_code=500, detail="Trading bot not initialized")
@@ -164,7 +132,7 @@ async def stop_bot(session: str = Depends(verify_session)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/emergency-stop")
-async def emergency_stop(reason: str = "Manual emergency stop", session: str = Depends(verify_session)):
+async def emergency_stop(reason: str = "Manual emergency stop"):
     """Emergency stop the trading bot"""
     if not trading_bot:
         raise HTTPException(status_code=500, detail="Trading bot not initialized")
@@ -245,7 +213,7 @@ async def get_symbols():
     return {"symbols": trading_bot.symbols}
 
 @app.post("/api/trade/manual")
-async def manual_trade(request: ManualTradeRequest, session: str = Depends(verify_session)):
+async def manual_trade(request: ManualTradeRequest):
     """Execute a manual trade"""
     if not trading_bot:
         raise HTTPException(status_code=500, detail="Trading bot not initialized")
