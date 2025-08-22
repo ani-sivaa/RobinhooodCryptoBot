@@ -1,11 +1,11 @@
 import asyncio
 import aiohttp
-import hashlib
-import hmac
 import time
+import base64
 from typing import Optional, Dict, List
 from datetime import datetime
 import logging
+import nacl.signing
 from .models import Trade, OrderType, OrderSide, OrderStatus, Portfolio
 from .config import settings
 
@@ -231,7 +231,7 @@ class ExecutionModule:
             if not await self._check_rate_limit():
                 await asyncio.sleep(1)
             
-            endpoint = "/api/v1/crypto/portfolios/"
+            endpoint = "/api/v1/crypto/trading/accounts/"
             headers = self._create_auth_headers("GET", endpoint)
             
             if not self.session:
@@ -314,26 +314,38 @@ class ExecutionModule:
             return OrderStatus.PENDING
     
     def _create_auth_headers(self, method: str, endpoint: str, body: Dict = None) -> Dict[str, str]:
-        """Create authenticated headers for Robinhood API"""
+        """Create authenticated headers for Robinhood API (Ed25519 signing)"""
         
+        # Create timestamp (current time in seconds)
         timestamp = str(int(time.time()))
         
-        message = f"{timestamp}{method.upper()}{endpoint}"
+        # Create message to sign: api_key + timestamp + path + method + body (from Robinhood docs)
+        # NOTE: Robinhood uses Python dict string representation, not JSON!
+        body_str = ""
         if body:
-            import json
-            message += json.dumps(body, separators=(',', ':'))
+            body_str = str(body)  # Python dict representation, not JSON
         
-        signature = hmac.new(
-            self.private_key.encode(),
-            message.encode(),
-            hashlib.sha256
-        ).hexdigest()
+        message = f"{self.api_key}{timestamp}{endpoint}{method.upper()}{body_str}"
+        
+        # Create Ed25519 signature
+        try:
+            # Decode the base64 private key
+            private_key_bytes = base64.b64decode(self.private_key)
+            signing_key = nacl.signing.SigningKey(private_key_bytes)
+            
+            # Sign the message
+            signed_message = signing_key.sign(message.encode('utf-8'))
+            signature = base64.b64encode(signed_message.signature).decode('utf-8')
+            
+        except Exception as e:
+            logger.error(f"Error creating Ed25519 signature: {e}")
+            raise
         
         return {
-            "x-api-key": self.api_key,
-            "x-signature": signature,
-            "x-timestamp": timestamp,
-            "Content-Type": "application/json"
+            'x-api-key': self.api_key,
+            'x-timestamp': timestamp,
+            'x-signature': signature,
+            'Content-Type': 'application/json; charset=utf-8'
         }
     
     async def _check_rate_limit(self) -> bool:
