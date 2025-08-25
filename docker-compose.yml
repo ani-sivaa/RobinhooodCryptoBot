@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ROBINHOOD_API_KEY=${ROBINHOOD_API_KEY}
+      - ROBINHOOD_PRIVATE_KEY=${ROBINHOOD_PRIVATE_KEY}
+      - TRADING_BUDGET=100.0
+      - MAX_RISK_PER_TRADE=0.03
+      - DAILY_LOSS_LIMIT=0.15
+      - MIN_TRADE_AMOUNT=5.0
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./backend:/app
+      - trading_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  trading_data:

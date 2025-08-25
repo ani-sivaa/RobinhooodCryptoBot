@@ -1,26 +1,23 @@
 services:
   - type: web
-    name: robinhood-crypto-bot-api
+    name: robinhood-crypto-bot
     env: python
-    buildCommand: "cd backend && pip install -r requirements.txt"
-    startCommand: "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
-    healthCheckPath: /healthz
+    buildCommand: "pip install poetry && poetry install"
+    startCommand: "poetry run uvicorn main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    autoDeploy: false
     envVars:
-      - key: PYTHONPATH
-        value: /opt/render/project/src/backend
       - key: ROBINHOOD_API_KEY
         sync: false
       - key: ROBINHOOD_PRIVATE_KEY
         sync: false
-      - key: COINGECKO_API_KEY
-        sync: false
-      - key: NEWSDATA_API_KEY
-        sync: false
-      - key: SECRET_KEY
-        sync: false
       - key: TRADING_BUDGET
         value: "100.0"
-      - key: PAPER_TRADING_MODE
-        value: "false"
-      - key: ALLOWED_ORIGINS
-        value: "https://your-frontend-domain.vercel.app"
+      - key: MAX_RISK_PER_TRADE
+        value: "0.03"
+      - key: DAILY_LOSS_LIMIT
+        value: "0.15"
+      - key: MIN_TRADE_AMOUNT
+        value: "5.0"
+      - key: LOG_LEVEL
+        value: "INFO"
