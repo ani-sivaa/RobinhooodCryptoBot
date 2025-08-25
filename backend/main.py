@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from trading_bot import TradingBot
+from monitoring import TradingBotMonitor
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,9 +34,10 @@ app.add_middleware(
 )
 
 trading_bot: Optional[TradingBot] = None
+bot_monitor: Optional[TradingBotMonitor] = None
 
 class BotStartRequest(BaseModel):
-    symbols: Optional[List[str]] = ['BTC', 'ETH']
+    symbols: Optional[List[str]] = ['BTC', 'ETH', 'DOGE', 'LTC']
     account_balance: Optional[float] = 100.0
 
 class ManualTradeRequest(BaseModel):
@@ -56,7 +58,21 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "timestamp": datetime.now()}
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now(),
+        "bot_running": trading_bot.is_running if trading_bot else False,
+        "api_connected": False
+    }
+    
+    if trading_bot:
+        try:
+            account_info = await trading_bot.robinhood_client.get_account()
+            health_status["api_connected"] = bool(account_info)
+        except:
+            health_status["api_connected"] = False
+    
+    return health_status
 
 @app.post("/api/bot/start")
 async def start_bot(request: BotStartRequest):
@@ -85,6 +101,11 @@ async def start_bot(request: BotStartRequest):
         if result['status'] == 'error':
             raise HTTPException(status_code=400, detail=result['message'])
         
+        global bot_monitor
+        if not bot_monitor:
+            bot_monitor = TradingBotMonitor(trading_bot)
+            asyncio.create_task(bot_monitor.start_monitoring())
+        
         return result
     
     except Exception as e:
@@ -101,6 +122,12 @@ async def stop_bot():
     
     try:
         result = await trading_bot.stop()
+        
+        global bot_monitor
+        if bot_monitor:
+            await bot_monitor.stop_monitoring()
+            bot_monitor = None
+        
         return result
     
     except Exception as e:
@@ -128,6 +155,10 @@ async def execute_trading_cycle():
     
     try:
         result = await trading_bot.execute_trading_cycle()
+        
+        if bot_monitor and result.get('status') == 'success':
+            bot_monitor.update_last_successful_cycle()
+        
         return result
     
     except Exception as e:
@@ -254,7 +285,7 @@ async def run_trading_cycles():
         try:
             if trading_bot and trading_bot.is_running:
                 await trading_bot.execute_trading_cycle()
-            await asyncio.sleep(300)  # Run every 5 minutes
+            await asyncio.sleep(180)  # Run every 3 minutes
         except Exception as e:
             logger.error(f"Background trading cycle error: {e}")
             await asyncio.sleep(60)  # Wait 1 minute on error

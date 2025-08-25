@@ -15,8 +15,8 @@ class RiskManager:
     def __init__(
         self, 
         account_balance: float, 
-        max_risk_per_trade: float = 0.02, 
-        daily_loss_limit: float = 0.10,
+        max_risk_per_trade: float = 0.03, 
+        daily_loss_limit: float = 0.15,
         atr_multiplier: float = 2.0
     ):
         self.account_balance = account_balance

@@ -22,7 +22,7 @@ class TradingBot:
         api_key: str, 
         private_key: str, 
         account_balance: float = 100.0,
-        symbols: List[str] = ['BTC', 'ETH']
+        symbols: List[str] = ['BTC', 'ETH', 'DOGE', 'LTC']
     ):
         self.robinhood_client = RobinhoodClient(api_key, private_key)
         self.data_manager = DataManager(self.robinhood_client)
@@ -46,9 +46,9 @@ class TradingBot:
             'sharpe_ratio': 0.0
         }
         
-        self.min_trade_interval = 300  # 5 minutes between trades for same symbol
-        self.max_trades_per_day = 10
-        self.auto_train_interval = 24  # hours
+        self.min_trade_interval = 180  # 3 minutes between trades for same symbol
+        self.max_trades_per_day = 15
+        self.auto_train_interval = 12  # hours
         
     async def start(self) -> Dict[str, Any]:
         """Start the trading bot"""

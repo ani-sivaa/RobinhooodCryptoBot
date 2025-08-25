@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: robinhood-crypto-bot
+    env: python
+    buildCommand: "pip install poetry && poetry install"
+    startCommand: "poetry run uvicorn main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: ROBINHOOD_API_KEY
+        sync: false
+      - key: ROBINHOOD_PRIVATE_KEY
+        sync: false
+      - key: TRADING_BUDGET
+        value: "100.0"
+      - key: MAX_RISK_PER_TRADE
+        value: "0.03"
+      - key: DAILY_LOSS_LIMIT
+        value: "0.15"
+      - key: MIN_TRADE_AMOUNT
+        value: "5.0"
+      - key: LOG_LEVEL
+        value: "INFO"

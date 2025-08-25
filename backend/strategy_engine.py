@@ -29,10 +29,10 @@ class StrategyEngine:
         self.symbols = symbols
         self.active_signals = {}
         self.last_analysis_time = {}
-        self.min_analysis_interval = 300  # 5 minutes
+        self.min_analysis_interval = 180  # 3 minutes
         
-        self.confidence_threshold = 0.6
-        self.signal_strength_threshold = 0.7
+        self.confidence_threshold = 0.55
+        self.signal_strength_threshold = 0.6
         self.lookback_period = 50
         
     def analyze_market(self, symbol: str) -> Dict[str, Any]:
@@ -106,8 +106,8 @@ class StrategyEngine:
         """Combine technical and ML signals into trading decision"""
         
         signal_weights = {
-            'technical': 0.4,
-            'ml': 0.6
+            'technical': 0.3,
+            'ml': 0.7
         }
         
         weighted_signal = (
@@ -115,12 +115,12 @@ class StrategyEngine:
             ml_signal * signal_weights['ml']
         )
         
-        if weighted_signal >= 1.5 and ml_confidence >= self.confidence_threshold:
+        if weighted_signal >= 1.2 and ml_confidence >= self.confidence_threshold:
             action = 'buy'
-            strength = min(weighted_signal - 1.0, 1.0) * ml_confidence
-        elif weighted_signal <= 0.5 and ml_confidence >= self.confidence_threshold:
+            strength = min(weighted_signal - 0.8, 1.0) * ml_confidence
+        elif weighted_signal <= 0.8 and ml_confidence >= self.confidence_threshold:
             action = 'sell'
-            strength = (1.0 - weighted_signal) * ml_confidence
+            strength = (1.2 - weighted_signal) * ml_confidence
         else:
             action = 'hold'
             strength = 0.0
